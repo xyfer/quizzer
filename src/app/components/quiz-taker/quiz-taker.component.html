@@ -1,0 +1,221 @@
+<div class="quiz-taker-container">
+  <p-toast></p-toast>
+
+  @if (currentSession() && quiz()) {
+    <div class="flex h-screen">
+      <div class="w-16rem bg-gray-100 p-4 overflow-y-auto border-right-1">
+        <h3 class="font-bold mb-4">Questions</h3>
+        <div class="flex flex-column gap-2">
+          @for (question of quiz()!.questions; let i = $index; track question.id) {
+            <button
+              class="w-full text-left p-2 border-round border-1 text-sm"
+              [class.bg-blue-500]="currentQuestionIndex() === i"
+              [class.text-white]="currentQuestionIndex() === i"
+              [class.bg-gray-200]="currentQuestionIndex() !== i"
+              (click)="goToQuestion(i)"
+            >
+              Question {{ i + 1 }}
+            </button>
+          }
+        </div>
+      </div>
+
+      <div class="flex-1 flex flex-column">
+        <div
+          class="px-4 py-2 flex justify-content-between align-items-center gap-2 border-bottom-1"
+        >
+          <h2 class="text-xl font-bold">{{ quiz()?.title }}</h2>
+          <div class="flex align-items-center gap-4">
+            <div [ngClass]="isTimeRunningOut() ? 'text-red-400' : ''">
+              <span class="font-bold">{{ formatTime(timeRemaining()) }}</span>
+            </div>
+            <p-progressBar
+              class="w-32"
+              [value]="getTimeProgressPercent()"
+              [showValue]="false"
+            ></p-progressBar>
+          </div>
+        </div>
+
+        <div class="flex-1 overflow-y-auto px-6 py-3">
+          @if (currentQuestion()) {
+            <div class="max-w-30rem">
+              <div class="mb-6">
+                <h3 class="text-2xl font-bold mb-2">
+                  Question {{ currentQuestionIndex() + 1 }} of {{ quiz()!.questions.length }}
+                </h3>
+                <p class="text-color mb-4">{{ currentQuestion()!.prompt }}</p>
+
+                <div class="mb-2 flex gap-4">
+                  <span class="text-sm text-color-secondary">
+                    Points: <strong>{{ currentQuestion()!.pointValue }}</strong>
+                  </span>
+                  @if (currentQuestion()!.required) {
+                    <span class="text-sm text-red-600"> Required </span>
+                  }
+                </div>
+              </div>
+
+              <div class="flex flex-column gap-3">
+                @for (option of currentQuestion()!.options; track option.id) {
+                  <div
+                    class="flex align-items-center p-4 border-2 border-gray-200 border-round cursor-pointer hover-border-blue-400"
+                    [class.border-green-400]="
+                      getQuestionFeedback(currentQuestion()!.id)?.isCorrect &&
+                      getCurrentAnswer() === option.id
+                    "
+                    [class.border-red-400]="
+                      getQuestionFeedback(currentQuestion()!.id)?.isCorrect === false &&
+                      getCurrentAnswer() === option.id
+                    "
+                    (click)="selectOption(option.id)"
+                  >
+                    <input
+                      type="radio"
+                      class="mr-3"
+                      [name]="'option-' + currentQuestion()!.id"
+                      [value]="option.id"
+                      [checked]="getCurrentAnswer() === option.id"
+                      [disabled]="hasSubmittedAnswer(currentQuestion()!.id)"
+                    />
+                    <label class="flex-1 cursor-pointer">
+                      {{ option.text }}
+                    </label>
+                  </div>
+                }
+              </div>
+
+              @if (getQuestionFeedback(currentQuestion()!.id); as feedback) {
+                <div
+                  class="mt-6 p-4 border-round"
+                  [ngClass]="
+                    feedback.isCorrect
+                      ? 'bg-green-50 border-2 border-green-400'
+                      : 'bg-red-50 border-2 border-red-400'
+                  "
+                >
+                  <div class="flex align-items-center gap-2 mb-2">
+                    <i
+                      [class]="
+                        feedback.isCorrect
+                          ? 'pi pi-check-circle text-green-600'
+                          : 'pi pi-times-circle text-red-600'
+                      "
+                    ></i>
+                    <span
+                      class="font-bold"
+                      [ngClass]="feedback.isCorrect ? 'text-green-600' : 'text-red-600'"
+                    >
+                      {{ feedback.isCorrect ? 'Correct!' : 'Incorrect' }}
+                    </span>
+                  </div>
+                  <div class="text-sm mb-2">
+                    <strong>Your Answer:</strong> {{ getOptionText(feedback.userAnswerId) }}
+                  </div>
+                  @if (!feedback.isCorrect) {
+                    <div class="text-sm mb-2">
+                      <strong>Correct Answer:</strong> {{ getOptionText(feedback.correctAnswerId) }}
+                    </div>
+                  }
+                  <div
+                    class="text-sm font-semibold"
+                    [ngClass]="feedback.isCorrect ? 'text-green-600' : 'text-red-600'"
+                  >
+                    Points: {{ feedback.isCorrect ? currentQuestion()!.pointValue : 0 }}/{{
+                      currentQuestion()!.pointValue
+                    }}
+                  </div>
+                </div>
+              } @else {
+                <button
+                  pButton
+                  label="Submit Answer"
+                  icon="pi pi-check"
+                  severity="success"
+                  class="mt-6 w-full"
+                  (click)="submitAnswer()"
+                  [disabled]="!getCurrentAnswer()"
+                ></button>
+              }
+            </div>
+          }
+        </div>
+
+        <div class="border-top-1 p-6 flex justify-content-between align-items-center bg-gray-50">
+          <div class="flex gap-3">
+            <button
+              pButton
+              label="Previous"
+              severity="secondary"
+              [disabled]="currentQuestionIndex() === 0"
+              (click)="previousQuestion()"
+            ></button>
+            <button
+              pButton
+              label="Next"
+              severity="secondary"
+              [disabled]="currentQuestionIndex() === quiz()!.questions.length - 1"
+              (click)="nextQuestion()"
+            ></button>
+          </div>
+
+          <div class="flex gap-3">
+            <button
+              pButton
+              label="Pause & Leave"
+              (click)="pauseQuiz()"
+              severity="secondary"
+            ></button>
+            <button
+              pButton
+              label="Submit Quiz"
+              icon="pi pi-check"
+              severity="success"
+              [disabled]="!isQuizComplete()"
+              (click)="submitQuiz()"
+            ></button>
+          </div>
+        </div>
+      </div>
+    </div>
+  }
+
+  <p-dialog
+    header="Leave Quiz"
+    [modal]="true"
+    [style]="{ width: '30vw' }"
+    [(visible)]="showPauseDialog"
+  >
+    <p>You can resume this quiz later. Your progress will be saved.</p>
+    <ng-template pTemplate="footer">
+      <button
+        pButton
+        label="Cancel"
+        severity="secondary"
+        (click)="showPauseDialog = false"
+      ></button>
+      <button pButton label="Leave" severity="secondary" (click)="confirmPauseQuiz()"></button>
+    </ng-template>
+  </p-dialog>
+
+  <p-dialog
+    header="Submit Quiz"
+    [modal]="true"
+    [style]="{ width: '30vw' }"
+    [(visible)]="showSubmitDialog"
+  >
+    <p>
+      Are you sure you want to submit your quiz? You won't be able to change your answers after
+      submitting.
+    </p>
+    <ng-template pTemplate="footer">
+      <button
+        pButton
+        label="Cancel"
+        severity="secondary"
+        (click)="showSubmitDialog = false"
+      ></button>
+      <button pButton label="Submit" severity="success" (click)="confirmSubmitQuiz()"></button>
+    </ng-template>
+  </p-dialog>
+</div>

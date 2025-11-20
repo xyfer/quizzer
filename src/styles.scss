@@ -1,1 +1,28 @@
-/* You can add global styles to this file, and also import other style files */
+@import 'primeflex/primeflex.css';
+@import 'primeicons/primeicons.css';
+
+* {
+  font-family:
+    -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+}
+
+body {
+  margin: 0;
+  padding: 3rem;
+  background-color: #ffffff;
+  color: #333333;
+  font-family:
+    -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+
+  // fix for primeng dialog messing with the padding
+  &.p-overflow-hidden {
+    padding-right: 3rem !important;
+    overflow: auto !important;
+  }
+}
+
+html,
+body {
+  height: 100%;
+}
+

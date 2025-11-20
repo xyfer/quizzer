@@ -1,0 +1,124 @@
+<div class="quiz-list-container">
+  <p-toast></p-toast>
+  <p-confirmDialog></p-confirmDialog>
+
+  <div class="px-6 py-2 flex align-items-baseline justify-content-between border-bottom-1">
+    <h1 class="text-5xl font-bold">Quizzes</h1>
+    <button
+      pButton
+      icon="pi pi-plus"
+      label="Create New Quiz"
+      severity="success"
+      (click)="createNewQuiz()"
+    ></button>
+  </div>
+
+  <div class="p-6">
+    <p-table [value]="quizzesWithStatus()">
+      <ng-template pTemplate="header">
+        <tr>
+          <th>Title</th>
+          <th>Description</th>
+          <th>Status</th>
+          <th>Questions</th>
+          <th>Time Limit</th>
+          <th style="width: 200px">Actions</th>
+        </tr>
+      </ng-template>
+
+      <ng-template pTemplate="body" let-quiz>
+        <tr>
+          <td class="font-semibold">{{ quiz.quiz.title || 'Untitled' }}</td>
+          <td>{{ quiz.quiz.description || '-' }}</td>
+          <td>
+            <p-tag
+              [value]="quiz.displayStatus"
+              [severity]="getStatusSeverity(quiz.displayStatus)"
+            ></p-tag>
+          </td>
+          <td>{{ quiz.quiz.questions.length }}</td>
+          <td>{{ quiz.quiz.timeLimitValue }} {{ quiz.quiz.timeLimitUnit }}</td>
+          <td>
+            <div class="flex gap-2">
+              @if (quiz.quiz.status === 'DRAFT') {
+                <button
+                  pButton
+                  icon="pi pi-pencil"
+                  pRipple
+                  class="p-button-sm p-button-info"
+                  pTooltip="Edit"
+                  (click)="editQuiz(quiz.quiz.id)"
+                ></button>
+              }
+
+              @if (
+                quiz.displayStatus === DisplayStatus.NOT_STARTED && quiz.quiz.status === 'PUBLISHED'
+              ) {
+                <button
+                  pButton
+                  icon="pi pi-play"
+                  pRipple
+                  class="p-button-sm p-button-success"
+                  pTooltip="Start"
+                  (click)="startQuiz(quiz.quiz.id)"
+                ></button>
+              }
+
+              @if (quiz.displayStatus === DisplayStatus.IN_PROGRESS) {
+                <button
+                  pButton
+                  icon="pi pi-play"
+                  pRipple
+                  class="p-button-sm p-button-info"
+                  pTooltip="Resume"
+                  (click)="resumeQuiz(quiz.quiz.id)"
+                ></button>
+              }
+
+              @if (quiz.displayStatus === DisplayStatus.COMPLETED) {
+                <button
+                  pButton
+                  icon="pi pi-eye"
+                  pRipple
+                  class="p-button-sm p-button-secondary"
+                  pTooltip="View Results"
+                  (click)="viewResults(quiz.quiz.id)"
+                ></button>
+                <button
+                  pButton
+                  icon="pi pi-refresh"
+                  pRipple
+                  class="p-button-sm p-button-info"
+                  pTooltip="Retake Quiz"
+                  (click)="retakeQuiz(quiz.quiz.id)"
+                ></button>
+              }
+
+              @if (quiz.quiz.status === 'DRAFT') {
+                <button
+                  pButton
+                  icon="pi pi-trash"
+                  pRipple
+                  class="p-button-sm p-button-danger p-button-text"
+                  pTooltip="Delete"
+                  (click)="deleteQuiz(quiz.quiz.id)"
+                ></button>
+              }
+            </div>
+          </td>
+        </tr>
+      </ng-template>
+
+      <ng-template pTemplate="emptymessage">
+        <tr>
+          <td colspan="6" class="text-center p-4 text-color-secondary">
+            <p>
+              No quizzes found.
+              <a (click)="createNewQuiz()" class="cursor-pointer text-blue-600">Create one</a>
+            </p>
+          </td>
+        </tr>
+      </ng-template>
+    </p-table>
+  </div>
+</div>

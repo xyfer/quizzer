@@ -1,0 +1,117 @@
+<div class="results-container">
+  <p-toast></p-toast>
+
+  @if (results() && quiz()) {
+    <div class="p-8">
+      <div class="flex justify-content-between align-items-center mb-4 pb-4 border-bottom-1">
+        <div class="flex align-items-center w-full">
+          <div>
+            <h1 class="text-5xl font-bold mb-2">Quiz Completed!</h1>
+            <p class="text-color-secondary">{{ quiz()?.title }}</p>
+          </div>
+        </div>
+        <div class="white-space-nowrap">
+          <button
+            pButton
+            icon="pi pi-home"
+            label="Back to Quizzes"
+            (click)="backToQuizzes()"
+          ></button>
+        </div>
+      </div>
+
+      <div class="grid gap-6 mb-4 px-2">
+        <p-card>
+          <ng-template pTemplate="header">
+            <div class="text-center p-6 bg-blue-50">
+              <h3 class="text-lg font-semibold text-color mb-2">Your Score</h3>
+              <div class="text-5xl font-bold text-blue-600">
+                {{ results()!.score }}/{{ results()!.maxScore }}
+              </div>
+            </div>
+          </ng-template>
+        </p-card>
+
+        <p-card>
+          <ng-template pTemplate="header">
+            <div class="text-center p-6 bg-green-50">
+              <h3 class="text-lg font-semibold text-color mb-2">Percentage</h3>
+              <div class="text-5xl font-bold text-green-600">{{ results()!.percentage }}%</div>
+            </div>
+          </ng-template>
+        </p-card>
+      </div>
+
+      <p-card>
+        <ng-template pTemplate="header">
+          <h2 class="text-xl font-bold p-3">Question Results</h2>
+        </ng-template>
+
+        <p-table class="w-full" [value]="results()!.questionScores">
+          <ng-template pTemplate="header">
+            <tr>
+              <th>Question</th>
+              <th>Your Answer</th>
+              <th>Correct Answer</th>
+              <th>Score</th>
+              <th>Result</th>
+            </tr>
+          </ng-template>
+
+          <ng-template pTemplate="body" let-score>
+            <tr>
+              <td>
+                <strong>{{ getQuestionText(score.questionId) }}</strong>
+              </td>
+              <td>
+                {{ getOptionText(score.questionId, score.userAnswerId) || '(No answer)' }}
+              </td>
+              <td>
+                {{ getOptionText(score.questionId, score.correctAnswerId) }}
+              </td>
+              <td>
+                <strong
+                  >{{ score.isCorrect ? getQuestionPointValue(score.questionId) : 0 }}/{{
+                    getQuestionPointValue(score.questionId)
+                  }}</strong
+                >
+              </td>
+              <td>
+                <p-tag
+                  [value]="score.isCorrect ? 'Correct' : 'Incorrect'"
+                  [severity]="score.isCorrect ? 'success' : 'danger'"
+                ></p-tag>
+              </td>
+            </tr>
+          </ng-template>
+        </p-table>
+      </p-card>
+
+      <div class="flex gap-3 justify-content-center mt-8">
+        <button
+          pButton
+          label="Back to Quizzes"
+          icon="pi pi-arrow-left"
+          severity="secondary"
+          (click)="backToQuizzes()"
+        ></button>
+        <button
+          pButton
+          label="Retake Quiz"
+          icon="pi pi-refresh"
+          severity="info"
+          (click)="retakeQuiz()"
+        ></button>
+      </div>
+    </div>
+  }
+
+  @if (!results() || !quiz()) {
+    <div class="flex flex-column align-items-center justify-content-center h-screen">
+      <i class="pi pi-times-circle text-red-600 text-6xl mb-4"></i>
+      <h2 class="text-2xl font-bold mb-2">Results Not Found</h2>
+      <p class="text-color-secondary mb-6">The quiz results you are looking for do not exist.</p>
+      <button pButton label="Go to Quizzes" (click)="backToQuizzes()"></button>
+    </div>
+  }
+</div>

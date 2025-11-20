@@ -1,0 +1,97 @@
+<div class="question-editor p-4 mb-4 border-left-4 border-blue-500">
+  <div class="grid gap-4">
+    <div class="col-12">
+      <label class="block mb-2 font-semibold">Question Prompt</label>
+      <input
+        pInputText
+        type="text"
+        class="w-full"
+        placeholder="Enter question prompt"
+        [ngModel]="question.prompt"
+        (ngModelChange)="question.prompt = $event; onQuestionChange()"
+      />
+    </div>
+
+    <div class="col-12 md:col-6">
+      <label class="block mb-2 font-semibold">
+        <input
+          type="checkbox"
+          class="mr-2"
+          [ngModel]="question.required"
+          (ngModelChange)="question.required = $event; onQuestionChange()"
+        />
+        Required
+      </label>
+    </div>
+
+    <div class="col-12 md:col-6">
+      <label class="block mb-2 font-semibold">Points</label>
+      <p-inputNumber
+        [min]="1"
+        [step]="1"
+        [ngModel]="question.pointValue"
+        (ngModelChange)="question.pointValue = $event; onQuestionChange()"
+      ></p-inputNumber>
+    </div>
+
+    <div class="col-12">
+      <div class="flex justify-content-between align-items-center mb-3">
+        <label class="font-semibold">Answer Options</label>
+        <button
+          pButton
+          icon="pi pi-plus"
+          label="Add Option"
+          class="p-button-sm p-button-outlined"
+          (click)="addOption()"
+        ></button>
+      </div>
+
+      <div class="flex flex-column gap-3">
+        @for (option of question.options; let i = $index; track option.id) {
+          <div>
+            <label class="block mb-2 text-sm">Option {{ i + 1 }}</label>
+            <input
+              pInputText
+              type="text"
+              class="w-full"
+              placeholder="Enter option text"
+              [ngModel]="option.text"
+              (ngModelChange)="option.text = $event; onQuestionChange()"
+            />
+          </div>
+
+          <div class="flex gap-2">
+            <label class="flex align-items-center gap-2">
+              <input
+                type="radio"
+                [name]="'correct-' + question.id"
+                [value]="option.id"
+                [ngModel]="question.correctAnswerId"
+                (ngModelChange)="question.correctAnswerId = $event; onQuestionChange()"
+              />
+              <span class="text-sm">Correct</span>
+            </label>
+
+            <button
+              pButton
+              icon="pi pi-trash"
+              class="p-button-danger p-button-sm p-button-text"
+              [disabled]="question.options.length <= 2"
+              (click)="removeOption(option.id)"
+            ></button>
+          </div>
+        }
+      </div>
+    </div>
+
+    <div class="col-12">
+      <button
+        pButton
+        icon="pi pi-trash"
+        label="Remove Question"
+        severity="danger"
+        (click)="removeQuestion()"
+      ></button>
+    </div>
+  </div>
+</div>

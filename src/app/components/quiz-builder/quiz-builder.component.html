@@ -1,0 +1,142 @@
+<div class="quiz-builder-container">
+  <p-toast></p-toast>
+
+  @if (currentQuiz()) {
+    <div class="p-6">
+      <div class="flex justify-content-between align-items-center mb-6">
+        <h1 class="text-5xl font-bold">
+          {{ currentQuiz() && currentQuiz()!.id ? 'Edit Quiz' : 'Create New Quiz' }}
+        </h1>
+        <button
+          pButton
+          icon="pi pi-times"
+          severity="secondary"
+          [text]="true"
+          (click)="cancelEditing()"
+        ></button>
+      </div>
+
+      <p-card class="mb-6">
+        <ng-template pTemplate="header">
+          <h2 class="text-2xl font-semibold">Quiz Details</h2>
+        </ng-template>
+
+        <div class="grid gap-4">
+          <div class="col-12">
+            <label class="block mb-2 font-semibold">Quiz Title *</label>
+            <input
+              pInputText
+              type="text"
+              class="w-full"
+              placeholder="Enter quiz title"
+              [ngModel]="currentQuiz()!.title"
+              (ngModelChange)="updateQuizTitle($event)"
+            />
+          </div>
+
+          <div class="col-12">
+            <label class="block mb-2 font-semibold">Description</label>
+            <textarea
+              class="w-full p-3 border-1 border-gray-300 border-round"
+              rows="4"
+              placeholder="Enter quiz description"
+              [ngModel]="currentQuiz()!.description"
+              (ngModelChange)="updateQuizDescription($event)"
+            ></textarea>
+          </div>
+
+          <div class="col-12 md:col-6">
+            <label class="block mb-2 font-semibold">Time Limit Value</label>
+            <p-inputNumber
+              class="w-full"
+              [min]="1"
+              [ngModel]="currentQuiz()!.timeLimitValue"
+              (ngModelChange)="updateTimeLimitValue($event)"
+            ></p-inputNumber>
+          </div>
+
+          <div class="col-12 md:col-6">
+            <label class="block mb-2 font-semibold">Time Unit</label>
+            <p-select
+              optionLabel="label"
+              optionValue="value"
+              class="w-full"
+              [options]="timeUnits"
+              [ngModel]="currentQuiz()!.timeLimitUnit"
+              (ngModelChange)="updateTimeLimitUnit($event)"
+            ></p-select>
+          </div>
+
+          <div class="col-12">
+            <label class="flex align-items-center gap-2">
+              <input
+                type="checkbox"
+                [ngModel]="currentQuiz()!.shuffleQuestions"
+                (ngModelChange)="updateShuffleQuestions($event)"
+              />
+              <span class="font-semibold">Shuffle Questions</span>
+            </label>
+          </div>
+        </div>
+      </p-card>
+
+      <div class="mb-6">
+        <div class="flex justify-content-between align-items-center mb-4">
+          <h2 class="text-2xl font-semibold">
+            Questions ({{ currentQuiz() ? currentQuiz()!.questions.length : 0 }})
+          </h2>
+          <button
+            pButton
+            icon="pi pi-plus"
+            label="Add Question"
+            severity="info"
+            (click)="addQuestion()"
+          ></button>
+        </div>
+
+        @if (currentQuiz() && currentQuiz()!.questions.length === 0) {
+          <div class="text-center p-6 text-color-secondary">
+            <p>No questions yet. Click "Add Question" to start.</p>
+          </div>
+        }
+
+        @for (question of currentQuiz()?.questions || []; track question.id) {
+          <app-question-editor
+            [question]="question"
+            (questionChanged)="updateQuestion(question.id, $event)"
+            (questionRemoved)="removeQuestion($event)"
+          ></app-question-editor>
+        }
+      </div>
+
+      <p-dialog
+        header="Validation Errors"
+        [modal]="true"
+        [style]="{ width: '50vw' }"
+        [(visible)]="showValidationDialog"
+      >
+        <div class="flex flex-column gap-2">
+          @for (error of validationErrorsList; track $index) {
+            <div class="flex gap-2">
+              <i class="pi pi-exclamation-circle text-red-600"></i>
+              <span>{{ error }}</span>
+            </div>
+          }
+        </div>
+      </p-dialog>
+
+      <div class="flex gap-3 justify-content-end pt-6 border-top-1">
+        <button pButton label="Cancel" (click)="cancelEditing()" severity="secondary"></button>
+        <button pButton label="Save as Draft" (click)="saveDraft()" icon="pi pi-save"></button>
+        <button
+          pButton
+          label="Publish"
+          icon="pi pi-check"
+          severity="success"
+          [disabled]="!isValid()"
+          (click)="publishQuiz()"
+        ></button>
+      </div>
+    </div>
+  }
+</div>

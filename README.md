@@ -1,59 +1,48 @@
-# Quizzer
+# Quizzer - Angular Quiz Application
 
-This project was generated using [Angular CLI](https://github.com/angular/angular-cli) version 20.3.11.
+A zoneless Angular quiz platform with signal-based state management and localStorage persistence.
 
-## Development server
+I didn't have too much experience with signals or using Angular without Zone.js prior to writing this
+(many years of RxJS and change detection) but I definitely learned a lot from this exercise.
 
-To start a local development server, run:
+## Architecture
 
-```bash
-ng serve
+```
+Components (Quiz List, Quiz Builder, Taker, Results)
+        ↓
+Services (State Management with Signals)
+        ↓
+localStorage (Persistence)
 ```
 
-Once the server is running, open your browser and navigate to `http://localhost:4200/`. The application will automatically reload whenever you modify any of the source files.
+## Design Decisions
 
-## Code scaffolding
+| Decision | Reasoning | Trade-off |
+|----------|-----------|-----------|
+| **Zoneless Architecture** | Smaller bundle without zone.js, only updates DOM where needed (better performance) | Requires explicit signal updates (no automatic change detection) |
+| **Signal-Based State** | Seems to be the direction Angular is moving, simpler than RxJS for this case | No operators like `map`, `filter`, `switchMap` (need RxJS for complex async flows) |
+| **Manual Time Tracking with `setInterval`** | RxJS timers don't work well without Zone.js | ±1 second variance apparently; manual cleanup |
+| **localStorage Only** | Client-side only, no backend complexity | Data lost on cache clear; limited storage (~5-10MB) |
+| **One Result per Quiz** | Simpler state model, always uses latest attempt | New attempt replaces previous result |
 
-Angular CLI includes powerful code scaffolding tools. To generate a new component, run:
-
-```bash
-ng generate component component-name
-```
-
-For a complete list of available schematics (such as `components`, `directives`, or `pipes`), run:
-
-```bash
-ng generate --help
-```
-
-## Building
-
-To build the project run:
+## Getting Started
 
 ```bash
-ng build
+npm install
+npm start           # http://localhost:4200
+npm test            # run tests
+npm run build       # prod build
 ```
 
-This will compile your project and store the build artifacts in the `dist/` directory. By default, the production build optimizes your application for performance and speed.
+## Tips
 
-## Running unit tests
+To reset the app back to it's default state (get rid of all quizzes and state) just nuke localStorage
+```F12 -> application -> local storage -> clear```
 
-To execute unit tests with the [Karma](https://karma-runner.github.io) test runner, use the following command:
+## Tech Used
 
-```bash
-ng test
-```
-
-## Running end-to-end tests
-
-For end-to-end (e2e) testing, run:
-
-```bash
-ng e2e
-```
-
-Angular CLI does not come with an end-to-end testing framework by default. You can choose one that suits your needs.
-
-## Additional Resources
-
-For more information on using the Angular CLI, including detailed command references, visit the [Angular CLI Overview and Command Reference](https://angular.dev/tools/cli) page.
+- **Angular** 20.3.0
+- **TypeScript** 5.9+
+- **PrimeNG** 20.3.0 (UI components)
+- **PrimeFlex CSS** (styling)
+- **Jasmine/Karma** (testing)
