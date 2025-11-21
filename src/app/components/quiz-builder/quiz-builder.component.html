@@ -46,25 +46,13 @@
           </div>
 
           <div class="col-12 md:col-6">
-            <label class="block mb-2 font-semibold">Time Limit Value</label>
+            <label class="block mb-2 font-semibold">Time Limit (minutes)</label>
             <p-inputNumber
               class="w-full"
               [min]="1"
               [ngModel]="currentQuiz()!.timeLimitValue"
               (ngModelChange)="updateTimeLimitValue($event)"
             ></p-inputNumber>
-          </div>
-
-          <div class="col-12 md:col-6">
-            <label class="block mb-2 font-semibold">Time Unit</label>
-            <p-select
-              optionLabel="label"
-              optionValue="value"
-              class="w-full"
-              [options]="timeUnits"
-              [ngModel]="currentQuiz()!.timeLimitUnit"
-              (ngModelChange)="updateTimeLimitUnit($event)"
-            ></p-select>
           </div>
 
           <div class="col-12">
@@ -106,6 +94,15 @@
             (questionChanged)="updateQuestion(question.id, $event)"
             (questionRemoved)="removeQuestion($event)"
           ></app-question-editor>
+          <div class="flex gap-2 justify-content-end mb-4">
+            <button
+              pButton
+              icon="pi pi-plus"
+              label="Add Question"
+              severity="info"
+              (click)="addQuestion()"
+            ></button>
+          </div>
         }
       </div>
 
@@ -125,17 +122,24 @@
         </div>
       </p-dialog>
 
-      <div class="flex gap-3 justify-content-end pt-6 border-top-1">
-        <button pButton label="Cancel" (click)="cancelEditing()" severity="secondary"></button>
-        <button pButton label="Save as Draft" (click)="saveDraft()" icon="pi pi-save"></button>
+      <div class="flex gap-3 justify-content-between pt-6 border-top-1">
         <button
           pButton
-          label="Publish"
-          icon="pi pi-check"
-          severity="success"
-          [disabled]="!isValid()"
-          (click)="publishQuiz()"
+          label="Back to Quizzes"
+          icon="pi pi-arrow-left"
+          severity="secondary"
+          (click)="cancelEditing()"
         ></button>
+        <div class="flex gap-3">
+          <button pButton label="Save as Draft" (click)="saveDraft()" icon="pi pi-save"></button>
+          <button
+            pButton
+            label="Publish"
+            icon="pi pi-check"
+            severity="success"
+            (click)="publishQuiz()"
+          ></button>
+        </div>
       </div>
     </div>
   }

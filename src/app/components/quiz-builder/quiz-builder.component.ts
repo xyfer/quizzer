@@ -11,7 +11,7 @@ import { InputTextModule } from 'primeng/inputtext';
 import { SelectModule } from 'primeng/select';
 import { ToastModule } from 'primeng/toast';
 
-import { QuizQuestion, TimeUnit } from '../../models/types';
+import { QuizQuestion } from '../../models/types';
 import { QuizService } from '../../services/quiz.service';
 import { QuestionEditorComponent } from '../question-editor/question-editor.component';
 
@@ -42,11 +42,6 @@ export class QuizBuilderComponent implements OnInit {
   currentQuiz = this.quizStateService.currentEditingQuiz;
   isValid = this.quizStateService.isQuizValid;
 
-  timeUnits = [
-    { label: 'Seconds', value: TimeUnit.SECONDS },
-    { label: 'Minutes', value: TimeUnit.MINUTES },
-  ];
-
   showValidationDialog = signal(false);
   validationErrorsList: string[] = [];
 
@@ -66,10 +61,6 @@ export class QuizBuilderComponent implements OnInit {
 
   updateTimeLimitValue(value: number): void {
     this.quizStateService.updateQuizMetadata({ timeLimitValue: value });
-  }
-
-  updateTimeLimitUnit(unit: TimeUnit): void {
-    this.quizStateService.updateQuizMetadata({ timeLimitUnit: unit });
   }
 
   updateShuffleQuestions(shuffle: boolean): void {
@@ -119,12 +110,6 @@ export class QuizBuilderComponent implements OnInit {
 
     const result = this.quizStateService.publishQuiz(quiz);
     if (result.success) {
-      this.messageService.add({
-        severity: 'success',
-        summary: 'Quiz Published',
-        detail: 'Your quiz is now published and locked',
-        life: 3000,
-      });
       this.router.navigate(['/quizzes']);
     } else {
       this.validationErrorsList = result.errors;

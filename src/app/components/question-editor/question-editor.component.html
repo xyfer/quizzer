@@ -64,6 +64,7 @@
             <label class="flex align-items-center gap-2">
               <input
                 type="radio"
+                class="cursor-pointer"
                 [name]="'correct-' + question.id"
                 [value]="option.id"
                 [ngModel]="question.correctAnswerId"

@@ -1,16 +1,8 @@
-import { Injectable, signal, computed, effect } from '@angular/core';
-import {
-  QuizSession,
-  Status,
-  UserAnswer,
-  QuizResults,
-  QuestionScore,
-  Quiz,
-  TimeUnit,
-} from '../models/types';
+import { computed, effect, Injectable, signal } from '@angular/core';
+import { QuestionScore, Quiz, QuizResults, QuizSession, Status } from '../models/types';
 import { QuizService } from './quiz.service';
 
-// responsible for the state of an active quiz session
+// responsible for the state of quiz sessions both currently active and paused
 @Injectable({
   providedIn: 'root',
 })
@@ -30,17 +22,26 @@ export class QuizSessionService {
   // public computed signal, readonly
   results = computed(() => this.resultsSignal());
 
+  // private signal to track quiz ID due to timeout
+  private timedOutQuizIdSignal = signal<string | null>(null);
+  // public computed signal, readonly
+  timedOutQuizId = computed(() => this.timedOutQuizIdSignal());
+
   timeTickSignal = signal<number>(0);
 
   timeRemaining = computed(() => {
     this.timeTickSignal();
 
-    const session = this.currentSessionSignal();
-    if (!session || session.status === Status.NOT_STARTED || session.status === Status.COMPLETED) {
+    const currSession = this.currentSessionSignal();
+    if (
+      !currSession ||
+      currSession.status === Status.NOT_STARTED ||
+      currSession.status === Status.COMPLETED
+    ) {
       return 0;
     }
 
-    const remaining = Math.max(0, session.deadline - Date.now());
+    const remaining = Math.max(0, currSession.deadline - Date.now());
     return Math.ceil(remaining / 1000);
   });
 
@@ -58,7 +59,9 @@ export class QuizSessionService {
 
       const session = this.currentSessionSignal();
       if (session && this.isTimeExpired()) {
-        this.completeSessionDueToTimeout();
+        const quizId = session.quizId;
+        this.completeSession();
+        this.timedOutQuizIdSignal.set(quizId);
         clearInterval(interval);
       }
     }, 1000);
@@ -72,16 +75,20 @@ export class QuizSessionService {
     const quiz = this.quizStateService.getQuizById(quizId);
     if (!quiz) return null;
 
+    // Reset the auto-completed signal when starting a new session
+    this.timedOutQuizIdSignal.set(null);
+
     const existingSession = this.sessionsSignal().find(
-      (s) => s.quizId === quizId && s.status === Status.IN_PROGRESS,
+      (session) => session.quizId === quizId && session.status === Status.IN_PROGRESS,
     );
 
     if (existingSession) {
-      this.currentSessionSignal.set(existingSession);
+      this.updateCurrentSession(existingSession);
+      this.saveSessionsToStorage();
       return existingSession;
     }
 
-    const timeLimitMs = this.convertTimeLimit(quiz.timeLimitValue, quiz.timeLimitUnit);
+    const timeLimitMs = this.convertTimeLimit(quiz.timeLimitValue);
     const now = Date.now();
     const deadline = now + timeLimitMs;
 
@@ -92,95 +99,87 @@ export class QuizSessionService {
       startTime: now,
       deadline,
       userAnswers: [],
+      submittedQuestionIds: [],
+      questionOrder: [],
     };
 
-    this.sessionsSignal.set([...this.sessionsSignal(), session]);
-    this.currentSessionSignal.set(session);
+    // If the quiz requests shuffled questions, persist the shuffled question order
+    if (quiz.shuffleQuestions) {
+      const shuffled = [...quiz.questions];
+      for (let i = shuffled.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+      }
+      session.questionOrder = shuffled.map((q) => q.id);
+    }
+
+    this.addSession(session);
+    this.updateCurrentSession(session);
     this.saveSessionsToStorage();
 
     return session;
   }
 
   recordAnswer(questionId: string, selectedOptionId: string): void {
-    const session = this.currentSessionSignal();
-    if (!session || session.status !== Status.IN_PROGRESS) return;
+    const currSession = this.currentSessionSignal();
+    if (!currSession || currSession.status !== Status.IN_PROGRESS) return;
 
-    const existingAnswerIndex = session.userAnswers.findIndex((a) => a.questionId === questionId);
-
-    let updatedAnswers: UserAnswer[];
-    if (existingAnswerIndex >= 0) {
-      updatedAnswers = [
-        ...session.userAnswers.slice(0, existingAnswerIndex),
-        { questionId, selectedOptionId },
-        ...session.userAnswers.slice(existingAnswerIndex + 1),
-      ];
-    } else {
-      updatedAnswers = [...session.userAnswers, { questionId, selectedOptionId }];
-    }
+    // if we already have an answer for this question, update it; otherwise add new answer
+    const updatedAnswers = currSession.userAnswers.find((a) => a.questionId === questionId)
+      ? currSession.userAnswers.map((answer) =>
+          answer.questionId === questionId ? { questionId, selectedOptionId } : answer,
+        )
+      : [...currSession.userAnswers, { questionId, selectedOptionId }];
 
     const updated: QuizSession = {
-      ...session,
+      ...currSession,
       userAnswers: updatedAnswers,
     };
 
-    this.currentSessionSignal.set(updated);
+    this.updateCurrentSession(updated);
+    this.updateSession(currSession.id, updated);
     this.saveSessionsToStorage();
+  }
+
+  submitAnswer(questionId: string): void {
+    const currSession = this.currentSessionSignal();
+    if (!currSession || currSession.status !== Status.IN_PROGRESS) return;
+
+    // mark this question as submitted if not already
+    if (!currSession.submittedQuestionIds.includes(questionId)) {
+      const updated: QuizSession = {
+        ...currSession,
+        submittedQuestionIds: [...currSession.submittedQuestionIds, questionId],
+      };
+
+      this.updateCurrentSession(updated);
+      this.updateSession(currSession.id, updated);
+      this.saveSessionsToStorage();
+    }
   }
 
   completeSession(): QuizResults | null {
-    const session = this.currentSessionSignal();
-    if (!session) return null;
+    const currSession = this.currentSessionSignal();
+    if (!currSession) return null;
 
-    const quiz = this.quizStateService.getQuizById(session.quizId);
+    const quiz = this.quizStateService.getQuizById(currSession.quizId);
     if (!quiz) return null;
 
-    const results = this.calculateResults(session, quiz);
+    const results = this.calculateResults(currSession, quiz);
 
+    // mark session as completed
     const updatedSession: QuizSession = {
-      ...session,
+      ...currSession,
       status: Status.COMPLETED,
     };
 
-    const sessions = this.sessionsSignal().map((s) => (s.id === session.id ? updatedSession : s));
-    this.sessionsSignal.set(sessions);
-
-    const updatedResults = new Map(this.resultsSignal());
-    updatedResults.set(session.quizId, results);
-    this.resultsSignal.set(updatedResults);
-
-    this.currentSessionSignal.set(null);
+    // update all our signals and storage
+    this.updateSession(currSession.id, updatedSession);
+    this.updateResults(currSession.quizId, results);
     this.saveSessionsToStorage();
+    this.leaveSession();
 
     return results;
-  }
-
-  private completeSessionDueToTimeout(): void {
-    const session = this.currentSessionSignal();
-    if (!session) return;
-
-    const quiz = this.quizStateService.getQuizById(session.quizId);
-    if (!quiz) return;
-
-    const results = this.calculateResults(session, quiz);
-
-    const updatedSession: QuizSession = {
-      ...session,
-      status: Status.COMPLETED,
-    };
-
-    const sessions = this.sessionsSignal().map((s) => (s.id === session.id ? updatedSession : s));
-    this.sessionsSignal.set(sessions);
-
-    const updatedResults = new Map(this.resultsSignal());
-    updatedResults.set(session.quizId, results);
-    this.resultsSignal.set(updatedResults);
-
-    this.currentSessionSignal.set(null);
-    this.saveSessionsToStorage();
-  }
-
-  leaveSession(): void {
-    this.currentSessionSignal.set(null);
   }
 
   private calculateResults(session: QuizSession, quiz: Quiz): QuizResults {
@@ -213,19 +212,31 @@ export class QuizSessionService {
     };
   }
 
-  getResultsForQuiz(quizId: string): QuizResults | undefined {
-    return this.resultsSignal().get(quizId);
+  private addSession(session: QuizSession): void {
+    this.sessionsSignal.set([...this.sessionsSignal(), session]);
   }
 
-  private convertTimeLimit(value: number, unit: TimeUnit): number {
-    if (unit === TimeUnit.MINUTES) {
-      return value * 60 * 1000;
-    }
-    return value * 1000;
+  private updateSession(sessionId: string, updatedSession: QuizSession): void {
+    // create new array with updated session
+    const sessions = this.sessionsSignal().map((session) =>
+      session.id === sessionId ? updatedSession : session,
+    );
+    this.sessionsSignal.set(sessions);
   }
 
-  private generateId(): string {
-    return crypto.randomUUID();
+  private updateResults(quizId: string, results: QuizResults): void {
+    // create new map with updated results
+    const updatedResults = new Map(this.resultsSignal());
+    updatedResults.set(quizId, results);
+    this.resultsSignal.set(updatedResults);
+  }
+
+  private updateCurrentSession(session: QuizSession | null): void {
+    this.currentSessionSignal.set(session);
+  }
+
+  leaveSession(): void {
+    this.currentSessionSignal.set(null);
   }
 
   private saveSessionsToStorage(): void {
@@ -241,7 +252,12 @@ export class QuizSessionService {
     if (stored) {
       try {
         const data = JSON.parse(stored);
-        this.sessionsSignal.set(data.sessions || []);
+        const sessions = (data.sessions || []).map((session: QuizSession) => ({
+          ...session,
+          submittedQuestionIds: session.submittedQuestionIds || [],
+          questionOrder: session.questionOrder || [],
+        }));
+        this.sessionsSignal.set(sessions);
 
         const resultsArray = data.results || [];
         const resultsMap = new Map<string, QuizResults>();
@@ -250,8 +266,8 @@ export class QuizSessionService {
         });
         this.resultsSignal.set(resultsMap);
 
-        const activeSession = (data.sessions || []).find(
-          (s: QuizSession) => s.status === Status.IN_PROGRESS,
+        const activeSession = sessions.find(
+          (session: QuizSession) => session.status === Status.IN_PROGRESS,
         );
         if (activeSession) {
           this.currentSessionSignal.set(activeSession);
@@ -260,5 +276,18 @@ export class QuizSessionService {
         console.warn('Failed to load sessions from storage');
       }
     }
+  }
+
+  getResultsForQuiz(quizId: string): QuizResults | undefined {
+    return this.resultsSignal().get(quizId);
+  }
+
+  private convertTimeLimit(value: number): number {
+    // Time limit is always in minutes
+    return value * 60 * 1000;
+  }
+
+  private generateId(): string {
+    return crypto.randomUUID();
   }
 }

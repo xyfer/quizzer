@@ -14,7 +14,7 @@
   </div>
 
   <div class="p-6">
-    <p-table [value]="quizzesWithStatus()">
+    <p-table [value]="quizzesMetadata()">
       <ng-template pTemplate="header">
         <tr>
           <th>Title</th>
@@ -37,7 +37,7 @@
             ></p-tag>
           </td>
           <td>{{ quiz.quiz.questions.length }}</td>
-          <td>{{ quiz.quiz.timeLimitValue }} {{ quiz.quiz.timeLimitUnit }}</td>
+          <td>{{ quiz.quiz.timeLimitValue }} min</td>
           <td>
             <div class="flex gap-2">
               @if (quiz.quiz.status === 'DRAFT') {

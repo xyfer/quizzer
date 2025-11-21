@@ -1,5 +1,5 @@
 import { TestBed, fakeAsync } from '@angular/core/testing';
-import { Status, TimeUnit } from '../models/types';
+import { Status } from '../models/types';
 import { QuizSessionService } from './quiz-session.service';
 import { QuizService } from './quiz.service';
 
@@ -31,7 +31,6 @@ describe('QuizSessionService', () => {
       quizStateService.updateQuizMetadata({
         title: 'Test Quiz',
         timeLimitValue: 1,
-        timeLimitUnit: TimeUnit.MINUTES,
       });
       quizStateService.addQuestion();
 
@@ -55,7 +54,6 @@ describe('QuizSessionService', () => {
       quizStateService.updateQuizMetadata({
         title: 'Test',
         timeLimitValue: 1,
-        timeLimitUnit: TimeUnit.MINUTES,
       });
       quizStateService.addQuestion();
 
@@ -90,7 +88,6 @@ describe('QuizSessionService', () => {
       quizStateService.updateQuizMetadata({
         title: 'Test',
         timeLimitValue: 5,
-        timeLimitUnit: TimeUnit.MINUTES,
       });
       quizStateService.addQuestion();
 
@@ -153,7 +150,6 @@ describe('QuizSessionService', () => {
       quizStateService.updateQuizMetadata({
         title: 'Scoring Test',
         timeLimitValue: 5,
-        timeLimitUnit: TimeUnit.MINUTES,
       });
 
       quizStateService.addQuestion();
@@ -252,7 +248,6 @@ describe('QuizSessionService', () => {
       quizStateService.updateQuizMetadata({
         title: 'Test',
         timeLimitValue: 5,
-        timeLimitUnit: TimeUnit.MINUTES,
       });
       quizStateService.addQuestion();
 
@@ -303,8 +298,7 @@ describe('QuizSessionService', () => {
       quizStateService.createNewQuiz();
       quizStateService.updateQuizMetadata({
         title: 'Test',
-        timeLimitValue: 2,
-        timeLimitUnit: TimeUnit.SECONDS,
+        timeLimitValue: 1,
       });
       quizStateService.addQuestion();
 
@@ -330,7 +324,6 @@ describe('QuizSessionService', () => {
       quizStateService.updateQuizMetadata({
         title: 'Test',
         timeLimitValue: 5,
-        timeLimitUnit: TimeUnit.MINUTES,
       });
       quizStateService.addQuestion();
 

@@ -1,4 +1,4 @@
-import { Component, OnInit, OnDestroy, inject, signal } from '@angular/core';
+import { Component, OnInit, OnDestroy, inject, signal, effect } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, Router } from '@angular/router';
 import { ButtonModule } from 'primeng/button';
@@ -11,7 +11,7 @@ import { DialogModule } from 'primeng/dialog';
 
 import { QuizService } from '../../services/quiz.service';
 import { QuizSessionService } from '../../services/quiz-session.service';
-import { Quiz, QuestionScore } from '../../models/types';
+import { Quiz, QuestionScore, QuizSession } from '../../models/types';
 
 @Component({
   selector: 'app-quiz-taker',
@@ -50,6 +50,16 @@ export class QuizTakerComponent implements OnInit, OnDestroy {
   showPauseDialog = false;
   showSubmitDialog = false;
 
+  timeoutEffect = effect(() => {
+    const timedOutQuizId = this.sessionStateService.timedOutQuizId();
+    if (timedOutQuizId) {
+      const results = this.sessionStateService.getResultsForQuiz(timedOutQuizId);
+      if (results) {
+        this.router.navigate(['/results', results.quizId]);
+      }
+    }
+  });
+
   ngOnInit(): void {
     const quizId = this.route.snapshot.paramMap.get('id');
     if (!quizId) {
@@ -83,14 +93,40 @@ export class QuizTakerComponent implements OnInit, OnDestroy {
       return;
     }
 
+    // shuffle questions if enabled and this is a new session (no answers yet)
+    if (quiz.shuffleQuestions && session.userAnswers.length === 0) {
+      quiz.questions = this.shuffleArray(quiz.questions);
+    }
+
     this.quiz.set(quiz);
+    this.currentQuestionIndex.set(0);
     this.updateCurrentQuestion();
+
+    // if we are resuming a session, load feedback only for submitted answers
+    if (session && session.userAnswers.length > 0) {
+      this.populateSubmittedAnswers(session, quiz);
+    }
   }
 
-  ngOnDestroy(): void {
-    if (this.currentSession()?.id) {
-      this.sessionStateService.leaveSession();
+  populateSubmittedAnswers(session: QuizSession, quiz: Quiz): void {
+    const answers = new Map<string, QuestionScore>();
+    const submittedIds = session.submittedQuestionIds || [];
+    for (const userAnswer of session.userAnswers) {
+      // only show feedback for questions that were explicitly submitted
+      if (submittedIds.includes(userAnswer.questionId)) {
+        const question = quiz.questions.find((q) => q.id === userAnswer.questionId);
+        if (question) {
+          const isCorrect = userAnswer.selectedOptionId === question.correctAnswerId;
+          answers.set(userAnswer.questionId, {
+            questionId: userAnswer.questionId,
+            userAnswerId: userAnswer.selectedOptionId,
+            correctAnswerId: question.correctAnswerId,
+            isCorrect,
+          });
+        }
+      }
     }
+    this.submittedAnswers.set(answers);
   }
 
   goToQuestion(index: number): void {
@@ -145,11 +181,6 @@ export class QuizTakerComponent implements OnInit, OnDestroy {
   confirmPauseQuiz(): void {
     this.sessionStateService.leaveSession();
     this.showPauseDialog = false;
-    this.messageService.add({
-      severity: 'info',
-      summary: 'Quiz Paused',
-      detail: 'Your progress has been saved',
-    });
     this.router.navigate(['/quizzes']);
   }
 
@@ -162,12 +193,9 @@ export class QuizTakerComponent implements OnInit, OnDestroy {
     this.showSubmitDialog = false;
 
     if (results) {
-      this.messageService.add({
-        severity: 'success',
-        summary: 'Quiz Submitted',
-        detail: 'Your quiz has been submitted',
-      });
       this.router.navigate(['/results', results.quizId]);
+    } else {
+      this.router.navigate(['/quizzes']);
     }
   }
 
@@ -176,18 +204,6 @@ export class QuizTakerComponent implements OnInit, OnDestroy {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
     return `${mins}:${secs.toString().padStart(2, '0')}`;
-  }
-
-  getTimeProgressPercent(): number {
-    const session = this.currentSession();
-    const quiz = this.quiz();
-    if (!session || !quiz) return 0;
-
-    const timeLimitMs = session.deadline - session.startTime;
-    const timeRemainingSecs = this.timeRemaining();
-    const totalTimeSecs = timeLimitMs / 1000;
-
-    return Math.max(0, Math.min(100, (1 - timeRemainingSecs / totalTimeSecs) * 100));
   }
 
   private updateCurrentQuestion(): void {
@@ -249,5 +265,24 @@ export class QuizTakerComponent implements OnInit, OnDestroy {
     const updated = new Map(this.submittedAnswers());
     updated.set(currentQuestion.id, feedback);
     this.submittedAnswers.set(updated);
+
+    // mark this question as submitted in the service
+    this.sessionStateService.submitAnswer(currentQuestion.id);
+  }
+
+  // fisher-yates shuffle
+  private shuffleArray<T>(array: T[]): T[] {
+    const shuffled = [...array];
+    for (let i = shuffled.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+    }
+    return shuffled;
+  }
+
+  ngOnDestroy(): void {
+    if (this.currentSession()?.id) {
+      this.sessionStateService.leaveSession();
+    }
   }
 }

@@ -1,5 +1,5 @@
 import { Injectable, signal, computed } from '@angular/core';
-import { Quiz, QuizStatus, QuizQuestion, TimeUnit, QuizOption } from '../models/types';
+import { Quiz, QuizStatus, QuizQuestion, QuizOption } from '../models/types';
 
 // responsible for the state of all quizzes, both drafted and published
 @Injectable({
@@ -38,8 +38,7 @@ export class QuizService {
       id: this.generateId(),
       title: '',
       description: '',
-      timeLimitValue: 30,
-      timeLimitUnit: TimeUnit.MINUTES,
+      timeLimitValue: 10,
       shuffleQuestions: false,
       questions: [],
       status: QuizStatus.DRAFT,
@@ -67,17 +66,7 @@ export class QuizService {
 
   saveDraftQuiz(quiz: Quiz): void {
     const updated = { ...quiz, status: QuizStatus.DRAFT, updatedAt: Date.now() };
-    const index = this.quizzesSignal().findIndex((q) => q.id === quiz.id);
-
-    const quizzes = [...this.quizzesSignal()];
-    if (index >= 0) {
-      quizzes[index] = updated;
-    } else {
-      quizzes.push(updated);
-    }
-
-    this.quizzesSignal.set(quizzes);
-    this.saveQuizzesToStorage();
+    this.updateQuizInStorage(updated);
     this.currentEditingQuizSignal.set(updated);
   }
 
@@ -88,17 +77,7 @@ export class QuizService {
     }
 
     const published = { ...quiz, status: QuizStatus.PUBLISHED, updatedAt: Date.now() };
-    const index = this.quizzesSignal().findIndex((q) => q.id === quiz.id);
-
-    const quizzes = [...this.quizzesSignal()];
-    if (index >= 0) {
-      quizzes[index] = published;
-    } else {
-      quizzes.push(published);
-    }
-
-    this.quizzesSignal.set(quizzes);
-    this.saveQuizzesToStorage();
+    this.updateQuizInStorage(published);
     this.currentEditingQuizSignal.set(null);
     return { success: true, errors: [] };
   }
@@ -146,69 +125,60 @@ export class QuizService {
       correctAnswerId: '',
     };
 
-    const updated: Quiz = {
+    this.updateCurrentQuiz({
       ...quiz,
       questions: [...quiz.questions, newQuestion],
-      updatedAt: Date.now(),
-    };
-
-    this.currentEditingQuizSignal.set(updated);
+    });
   }
 
   removeQuestion(questionId: string): void {
     const quiz = this.currentEditingQuizSignal();
     if (!quiz) return;
 
-    const updated: Quiz = {
+    this.updateCurrentQuiz({
       ...quiz,
       questions: quiz.questions.filter((q) => q.id !== questionId),
-      updatedAt: Date.now(),
-    };
-
-    this.currentEditingQuizSignal.set(updated);
+    });
   }
 
   updateQuestion(questionId: string, updates: Partial<QuizQuestion>): void {
     const quiz = this.currentEditingQuizSignal();
     if (!quiz) return;
 
-    const updated: Quiz = {
+    this.updateCurrentQuiz({
       ...quiz,
-      questions: quiz.questions.map((q) => (q.id === questionId ? { ...q, ...updates } : q)),
-      updatedAt: Date.now(),
-    };
-
-    this.currentEditingQuizSignal.set(updated);
+      questions: quiz.questions.map((question) =>
+        question.id === questionId ? { ...question, ...updates } : question,
+      ),
+    });
   }
 
   addOptionToQuestion(questionId: string): void {
     const quiz = this.currentEditingQuizSignal();
     if (!quiz) return;
 
-    const updated: Quiz = {
+    this.updateCurrentQuiz({
       ...quiz,
-      questions: quiz.questions.map((q) => {
-        if (q.id === questionId) {
+      questions: quiz.questions.map((question) => {
+        if (question.id === questionId) {
           return {
-            ...q,
-            options: [...q.options, { id: this.generateId(), text: '' }],
+            ...question,
+            options: [...question.options, { id: this.generateId(), text: '' }],
           };
         }
-        return q;
+        return question;
       }),
-      updatedAt: Date.now(),
-    };
-
-    this.currentEditingQuizSignal.set(updated);
+    });
   }
 
   removeOptionFromQuestion(questionId: string, optionId: string): void {
     const quiz = this.currentEditingQuizSignal();
     if (!quiz) return;
 
-    const updated: Quiz = {
+    this.updateCurrentQuiz({
       ...quiz,
       questions: quiz.questions.map((q) => {
+        // don't allow fewer than 2 options
         if (q.id === questionId && q.options.length > 2) {
           return {
             ...q,
@@ -217,19 +187,16 @@ export class QuizService {
         }
         return q;
       }),
-      updatedAt: Date.now(),
-    };
-
-    this.currentEditingQuizSignal.set(updated);
+    });
   }
 
   updateOption(questionId: string, optionId: string, text: string): void {
-    const quiz = this.currentEditingQuizSignal();
-    if (!quiz) return;
+    const currQuiz = this.currentEditingQuizSignal();
+    if (!currQuiz) return;
 
-    const updated: Quiz = {
-      ...quiz,
-      questions: quiz.questions.map((question) => {
+    this.updateCurrentQuiz({
+      ...currQuiz,
+      questions: currQuiz.questions.map((question) => {
         if (question.id === questionId) {
           return {
             ...question,
@@ -240,10 +207,29 @@ export class QuizService {
         }
         return question;
       }),
-      updatedAt: Date.now(),
-    };
+    });
+  }
 
-    this.currentEditingQuizSignal.set(updated);
+  private updateCurrentQuiz(quiz: Quiz): void {
+    this.currentEditingQuizSignal.set({
+      ...quiz,
+      updatedAt: Date.now(),
+    });
+  }
+
+  private updateQuizInStorage(quiz: Quiz): void {
+    const existingQuiz = this.quizzesSignal().find((eq) => eq.id === quiz.id);
+
+    if (existingQuiz) {
+      // quiz exists, update it
+      const quizzes = this.quizzesSignal().map((q) => (q.id === quiz.id ? quiz : q));
+      this.quizzesSignal.set(quizzes);
+    } else {
+      // new quiz, add it
+      this.quizzesSignal.set([...this.quizzesSignal(), quiz]);
+    }
+
+    this.saveQuizzesToStorage();
   }
 
   validateQuiz(quiz: Quiz): string[] {
@@ -299,7 +285,6 @@ export class QuizService {
     title?: string;
     description?: string;
     timeLimitValue?: number;
-    timeLimitUnit?: TimeUnit;
     shuffleQuestions?: boolean;
   }): void {
     const quiz = this.currentEditingQuizSignal();
@@ -318,13 +303,22 @@ export class QuizService {
     return crypto.randomUUID();
   }
 
+  // fisher-yates shuffle
+  private shuffleArray<T>(array: T[]): T[] {
+    const shuffled = [...array];
+    for (let i = shuffled.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+    }
+    return shuffled;
+  }
+
   private initSampleQuiz(): void {
     const sampleQuiz: Quiz = {
       id: this.generateId(),
       title: 'Astro Quiz',
       description: 'What do you know about astronomy?',
       timeLimitValue: 10,
-      timeLimitUnit: TimeUnit.MINUTES,
       shuffleQuestions: false,
       questions: [
         {

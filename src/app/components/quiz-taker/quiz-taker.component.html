@@ -29,11 +29,6 @@
             <div [ngClass]="isTimeRunningOut() ? 'text-red-400' : ''">
               <span class="font-bold">{{ formatTime(timeRemaining()) }}</span>
             </div>
-            <p-progressBar
-              class="w-32"
-              [value]="getTimeProgressPercent()"
-              [showValue]="false"
-            ></p-progressBar>
           </div>
         </div>
 

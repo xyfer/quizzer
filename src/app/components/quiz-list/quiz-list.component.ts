@@ -43,12 +43,16 @@ export class QuizListComponent implements OnInit {
   quizzes = this.quizStateService.quizzes;
   sessions = this.sessionStateService.sessions;
 
-  quizzesWithStatus = computed(() => {
+  quizzesMetadata = computed(() => {
     const quizzes = this.quizzes();
     const sessions = this.sessions();
 
     return quizzes.map((quiz) => {
-      const session = sessions.find((s) => s.quizId === quiz.id);
+      // if theres an inprogress session for this quiz, use that
+      const inProgressSession = sessions.find(
+        (s) => s.quizId === quiz.id && s.status === Status.IN_PROGRESS,
+      );
+      const session = inProgressSession || sessions.find((s) => s.quizId === quiz.id);
       const result = this.sessionStateService.getResultsForQuiz(quiz.id);
 
       let displayStatus: Status = Status.NOT_STARTED;

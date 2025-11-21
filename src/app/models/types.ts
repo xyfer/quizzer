@@ -17,27 +17,16 @@ export enum QuizStatus {
   PUBLISHED = 'PUBLISHED',
 }
 
-export enum TimeUnit {
-  SECONDS = 'seconds',
-  MINUTES = 'minutes',
-}
-
 export interface Quiz {
   id: string;
   title: string;
   description: string;
   timeLimitValue: number;
-  timeLimitUnit: TimeUnit;
   shuffleQuestions: boolean;
   questions: QuizQuestion[];
   status: QuizStatus;
   createdAt: number;
   updatedAt: number;
-}
-
-export interface UserAnswer {
-  questionId: string;
-  selectedOptionId: string;
 }
 
 export enum Status {
@@ -46,13 +35,23 @@ export enum Status {
   COMPLETED = 'COMPLETED',
 }
 
+export interface UserAnswer {
+  questionId: string;
+  selectedOptionId: string;
+}
+
 export interface QuizSession {
   id: string;
   quizId: string;
   status: Status;
   startTime: number;
   deadline: number;
+  // answers that are recorded but not yet submitted
   userAnswers: UserAnswer[];
+  // ids of questions that have been explicitly submitted
+  submittedQuestionIds: string[];
+  // order of question IDs if questions were shuffled (empty if not shuffled)
+  questionOrder?: string[];
 }
 
 export interface QuestionScore {
