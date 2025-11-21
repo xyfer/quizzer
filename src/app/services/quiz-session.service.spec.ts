@@ -261,7 +261,6 @@ describe('QuizSessionService', () => {
         deadline: Date.now() + 60000,
         userAnswers: [],
         submittedQuestionIds: [],
-        questionOrder: [],
       };
 
       const data = {
@@ -293,7 +292,6 @@ describe('QuizSessionService', () => {
         deadline: Date.now() + 60000,
         userAnswers: [],
         submittedQuestionIds: [],
-        questionOrder: [],
       };
 
       const data = {

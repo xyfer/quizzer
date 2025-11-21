@@ -100,18 +100,7 @@ export class QuizSessionService {
       deadline,
       userAnswers: [],
       submittedQuestionIds: [],
-      questionOrder: [],
     };
-
-    // If the quiz requests shuffled questions, persist the shuffled question order
-    if (quiz.shuffleQuestions) {
-      const shuffled = [...quiz.questions];
-      for (let i = shuffled.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
-      }
-      session.questionOrder = shuffled.map((q) => q.id);
-    }
 
     this.addSession(session);
     this.updateCurrentSession(session);
@@ -255,7 +244,6 @@ export class QuizSessionService {
         const sessions = (data.sessions || []).map((session: QuizSession) => ({
           ...session,
           submittedQuestionIds: session.submittedQuestionIds || [],
-          questionOrder: session.questionOrder || [],
         }));
         this.sessionsSignal.set(sessions);
 

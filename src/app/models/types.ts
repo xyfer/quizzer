@@ -50,8 +50,6 @@ export interface QuizSession {
   userAnswers: UserAnswer[];
   // ids of questions that have been explicitly submitted
   submittedQuestionIds: string[];
-  // order of question IDs if questions were shuffled (empty if not shuffled)
-  questionOrder?: string[];
 }
 
 export interface QuestionScore {
