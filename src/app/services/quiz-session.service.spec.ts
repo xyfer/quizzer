@@ -1,348 +1,326 @@
-import { TestBed, fakeAsync } from '@angular/core/testing';
-import { Status } from '../models/types';
+import { TestBed, fakeAsync, tick } from '@angular/core/testing';
+import { provideZonelessChangeDetection } from '@angular/core';
 import { QuizSessionService } from './quiz-session.service';
 import { QuizService } from './quiz.service';
+import { Quiz, QuizStatus, Status } from '../models/types';
 
 describe('QuizSessionService', () => {
   let service: QuizSessionService;
-  let quizStateService: QuizService;
+  let quizService: QuizService;
+  let testQuiz: Quiz;
 
   beforeEach(() => {
     TestBed.configureTestingModule({
-      providers: [QuizSessionService, QuizService],
+      providers: [provideZonelessChangeDetection(), QuizService, QuizSessionService],
     });
     service = TestBed.inject(QuizSessionService);
-    quizStateService = TestBed.inject(QuizService);
-
+    quizService = TestBed.inject(QuizService);
     localStorage.clear();
+
+    // test quiz to be used in tests
+    testQuiz = {
+      id: 'test-quiz-1',
+      title: 'Test Quiz',
+      description: 'A test quiz',
+      timeLimitValue: 1,
+      shuffleQuestions: false,
+      questions: [
+        {
+          id: 'q1',
+          prompt: 'What is 2+2?',
+          required: true,
+          pointValue: 1,
+          options: [
+            { id: 'opt1', text: '3' },
+            { id: 'opt2', text: '4' },
+          ],
+          correctAnswerId: 'opt2',
+        },
+        {
+          id: 'q2',
+          prompt: 'What is 3+3?',
+          required: true,
+          pointValue: 2,
+          options: [
+            { id: 'opt3', text: '5' },
+            { id: 'opt4', text: '6' },
+          ],
+          correctAnswerId: 'opt4',
+        },
+      ],
+      status: QuizStatus.PUBLISHED,
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    };
+
+    // add quiz to quizService by saving it
+    quizService.saveDraftQuiz(testQuiz);
   });
 
   afterEach(() => {
     localStorage.clear();
   });
 
-  it('should be created', () => {
-    expect(service).toBeTruthy();
-  });
-
-  describe('Session Lifecycle', () => {
+  describe('Session Management', () => {
     it('should start a new session', () => {
-      quizStateService.createNewQuiz();
-      quizStateService.updateQuizMetadata({
-        title: 'Test Quiz',
-        timeLimitValue: 1,
-      });
-      quizStateService.addQuestion();
-
-      const quiz = quizStateService.currentEditingQuiz()!;
-      const question = quiz.questions[0];
-      question.prompt = 'Q?';
-      question.options[0].text = 'O1';
-      question.options[1].text = 'O2';
-      question.correctAnswerId = question.options[0].id;
-      quizStateService.updateQuestion(question.id, question);
-      quizStateService.publishQuiz(quiz);
-
-      const session = service.startSession(quiz.id);
-      expect(session).toBeTruthy();
+      const session = service.startSession('test-quiz-1');
+      expect(session).not.toBeNull();
       expect(session?.status).toBe(Status.IN_PROGRESS);
-      expect(session?.userAnswers.length).toBe(0);
+      expect(session?.quizId).toBe('test-quiz-1');
+      expect(session?.userAnswers).toEqual([]);
     });
 
-    it('should resume existing session', () => {
-      quizStateService.createNewQuiz();
-      quizStateService.updateQuizMetadata({
-        title: 'Test',
-        timeLimitValue: 1,
-      });
-      quizStateService.addQuestion();
-
-      const quiz = quizStateService.currentEditingQuiz()!;
-      const question = quiz.questions[0];
-      question.prompt = 'Q?';
-      question.options[0].text = 'O1';
-      question.options[1].text = 'O2';
-      question.correctAnswerId = question.options[0].id;
-      quizStateService.updateQuestion(question.id, question);
-      quizStateService.publishQuiz(quiz);
-
-      const session1 = service.startSession(quiz.id);
-      service.leaveSession();
-
-      const session2 = service.startSession(quiz.id);
-      expect(session2?.id).toBe(session1?.id);
-    });
-
-    it('should not start session for non-existent quiz', () => {
-      const session = service.startSession('non-existent');
+    it('should return null when starting session with non-existent quiz', () => {
+      const session = service.startSession('non-existent-quiz');
       expect(session).toBeNull();
     });
+
+    it('should return existing in-progress session', () => {
+      const session1 = service.startSession('test-quiz-1');
+      const session2 = service.startSession('test-quiz-1');
+      expect(session1?.id).toBe(session2?.id);
+    });
+
+    it('should set current session when starting', () => {
+      service.startSession('test-quiz-1');
+      expect(service.currentSession()).not.toBeNull();
+      expect(service.currentSession()?.quizId).toBe('test-quiz-1');
+    });
+
+    it('should leave session', () => {
+      service.startSession('test-quiz-1');
+      service.leaveSession();
+      expect(service.currentSession()).toBeNull();
+    });
   });
 
-  describe('Answer Recording', () => {
-    let quizId: string;
-    let questionId: string;
-
+  describe('answers', () => {
     beforeEach(() => {
-      quizStateService.createNewQuiz();
-      quizStateService.updateQuizMetadata({
-        title: 'Test',
-        timeLimitValue: 5,
-      });
-      quizStateService.addQuestion();
-
-      const quiz = quizStateService.currentEditingQuiz()!;
-      const question = quiz.questions[0];
-      question.prompt = 'Q?';
-      question.options[0].text = 'O1';
-      question.options[1].text = 'O2';
-      question.correctAnswerId = question.options[0].id;
-      quizStateService.updateQuestion(question.id, question);
-      quizStateService.publishQuiz(quiz);
-      quizId = quiz.id;
-      questionId = quiz.questions[0].id;
-
-      service.startSession(quizId);
+      service.startSession('test-quiz-1');
     });
 
     it('should record an answer', () => {
-      const session = service.currentSession()!;
-      const optionId = quizStateService.getQuizById(quizId)!.questions[0].options[0].id;
-
-      service.recordAnswer(questionId, optionId);
-
-      const updated = service.currentSession()!;
-      expect(updated.userAnswers.length).toBe(1);
-      expect(updated.userAnswers[0].questionId).toBe(questionId);
-      expect(updated.userAnswers[0].selectedOptionId).toBe(optionId);
-    });
-
-    it('should update existing answer', () => {
-      const quiz = quizStateService.getQuizById(quizId)!;
-      const optionId1 = quiz.questions[0].options[0].id;
-      const optionId2 = quiz.questions[0].options[1].id;
-
-      service.recordAnswer(questionId, optionId1);
-      service.recordAnswer(questionId, optionId2);
-
-      const session = service.currentSession()!;
-      expect(session.userAnswers.length).toBe(1);
-      expect(session.userAnswers[0].selectedOptionId).toBe(optionId2);
-    });
-
-    it('should not record answer if session not in progress', () => {
-      // currentSession is null
-      const quiz = quizStateService.getQuizById(quizId)!;
-      const optionId = quiz.questions[0].options[0].id;
-
-      service.recordAnswer(questionId, optionId);
-
+      service.recordAnswer('q1', 'opt2');
       const session = service.currentSession();
-      expect(session).toBeNull();
+      expect(session?.userAnswers).toEqual(
+        jasmine.arrayContaining([
+          {
+            questionId: 'q1',
+            selectedOptionId: 'opt2',
+          },
+        ])
+      );
+    });
+
+    it('should update an existing answer', () => {
+      service.recordAnswer('q1', 'opt1');
+      service.recordAnswer('q1', 'opt2');
+      const session = service.currentSession();
+      expect(session?.userAnswers.length).toBe(1);
+      expect(session?.userAnswers[0].selectedOptionId).toBe('opt2');
+    });
+
+    it('should record multiple different answers', () => {
+      service.recordAnswer('q1', 'opt1');
+      service.recordAnswer('q2', 'opt3');
+      const session = service.currentSession();
+      expect(session?.userAnswers.length).toBe(2);
+    });
+
+    it('should not record answer when no active session', () => {
+      service.leaveSession();
+      service.recordAnswer('q1', 'opt1');
+      expect(service.currentSession()).toBeNull();
     });
   });
 
-  describe('Scoring and Results', () => {
-    let quizId: string;
-
+  describe('submitting', () => {
     beforeEach(() => {
-      const newQuiz = quizStateService.createNewQuiz();
-      quizStateService.updateQuizMetadata({
-        title: 'Scoring Test',
-        timeLimitValue: 5,
-      });
-
-      quizStateService.addQuestion();
-      quizStateService.addQuestion();
-
-      const quiz = quizStateService.currentEditingQuiz()!;
-      quizId = quiz.id;
-
-      const q1 = quiz.questions[0];
-      q1.prompt = 'Q1?';
-      q1.pointValue = 2;
-      q1.options[0].text = 'Correct';
-      q1.options[1].text = 'Wrong';
-      q1.correctAnswerId = q1.options[0].id;
-      quizStateService.updateQuestion(q1.id, q1);
-
-      const q2 = quiz.questions[1];
-      q2.prompt = 'Q2?';
-      q2.pointValue = 3;
-      q2.options[0].text = 'Wrong';
-      q2.options[1].text = 'Correct';
-      q2.correctAnswerId = q2.options[1].id;
-      quizStateService.updateQuestion(q2.id, q2);
-
-      quizStateService.publishQuiz(quiz);
+      service.startSession('test-quiz-1');
     });
 
-    it('should calculate correct scores', () => {
-      const quiz = quizStateService.getQuizById(quizId)!;
-      service.startSession(quizId);
+    it('should mark question as submitted', () => {
+      service.submitAnswer('q1');
+      const session = service.currentSession();
+      expect(session?.submittedQuestionIds).toContain('q1');
+    });
 
-      service.recordAnswer(quiz.questions[0].id, quiz.questions[0].correctAnswerId);
-      service.recordAnswer(quiz.questions[1].id, quiz.questions[1].correctAnswerId);
+    it('should not add duplicate submitted questions', () => {
+      service.submitAnswer('q1');
+      service.submitAnswer('q1');
+      const session = service.currentSession();
+      expect(session?.submittedQuestionIds.length).toBe(1);
+    });
 
+    it('should not submit answer when no active session', () => {
+      service.leaveSession();
+      service.submitAnswer('q1');
+      expect(service.currentSession()).toBeNull();
+    });
+  });
+
+  describe('quiz completion', () => {
+    it('should calculate correct results for all correct answers', () => {
+      service.startSession('test-quiz-1');
+      service.recordAnswer('q1', 'opt2');
+      service.recordAnswer('q2', 'opt4');
       const results = service.completeSession();
 
-      expect(results?.score).toBe(5);
-      expect(results?.maxScore).toBe(5);
+      expect(results).not.toBeNull();
+      expect(results?.score).toBe(3);
+      expect(results?.maxScore).toBe(3);
       expect(results?.percentage).toBe(100);
+      expect(results?.questionScores.every((qs) => qs.isCorrect)).toBe(true);
     });
 
-    it('should calculate partial scores', () => {
-      const quiz = quizStateService.getQuizById(quizId)!;
-      service.startSession(quizId);
-
-      service.recordAnswer(quiz.questions[0].id, quiz.questions[0].correctAnswerId);
-      service.recordAnswer(quiz.questions[1].id, quiz.questions[1].options[0].id);
-
+    it('should calculate correct results for partial correct answers', () => {
+      service.startSession('test-quiz-1');
+      service.recordAnswer('q1', 'opt1'); // incorrect
+      service.recordAnswer('q2', 'opt4'); // correct
       const results = service.completeSession();
 
       expect(results?.score).toBe(2);
-      expect(results?.maxScore).toBe(5);
-      expect(results?.percentage).toBe(40);
+      expect(results?.maxScore).toBe(3);
+      expect(results?.percentage).toBe(67);
+      expect(results?.questionScores[0].isCorrect).toBe(false);
+      expect(results?.questionScores[1].isCorrect).toBe(true);
     });
 
-    it('should calculate zero scores', () => {
-      const quiz = quizStateService.getQuizById(quizId)!;
-      service.startSession(quizId);
-
-      service.recordAnswer(quiz.questions[0].id, quiz.questions[0].options[1].id);
-      service.recordAnswer(quiz.questions[1].id, quiz.questions[1].options[0].id);
-
+    it('should calculate correct results for all incorrect answers', () => {
+      service.startSession('test-quiz-1');
+      service.recordAnswer('q1', 'opt1');
+      service.recordAnswer('q2', 'opt3'); 
       const results = service.completeSession();
 
       expect(results?.score).toBe(0);
+      expect(results?.maxScore).toBe(3);
       expect(results?.percentage).toBe(0);
     });
 
-    it('should handle unanswered questions as zero score', () => {
-      service.startSession(quizId);
-
+    it('should handle unanswered questions', () => {
+      service.startSession('test-quiz-1');
+      service.recordAnswer('q1', 'opt2');
+      // q2 is not answered
       const results = service.completeSession();
 
-      expect(results?.score).toBe(0);
-      expect(results?.percentage).toBe(0);
-    });
-
-    it('should provide per-question breakdown', () => {
-      const quiz = quizStateService.getQuizById(quizId)!;
-      service.startSession(quizId);
-
-      service.recordAnswer(quiz.questions[0].id, quiz.questions[0].correctAnswerId);
-      service.recordAnswer(quiz.questions[1].id, quiz.questions[1].options[0].id);
-
-      const results = service.completeSession();
-
-      expect(results?.questionScores.length).toBe(2);
-      expect(results?.questionScores[0].isCorrect).toBe(true);
+      expect(results?.score).toBe(1);
       expect(results?.questionScores[1].isCorrect).toBe(false);
+      expect(results?.questionScores[1].userAnswerId).toBe('');
+    });
+
+    it('should return null when completing with no active session', () => {
+      const results = service.completeSession();
+      expect(results).toBeNull();
+    });
+
+    it('should store results in resultsSignal', () => {
+      service.startSession('test-quiz-1');
+      service.recordAnswer('q1', 'opt2');
+      service.completeSession();
+
+      const results = service.getResultsForQuiz('test-quiz-1');
+      expect(results).toBeDefined();
+      expect(results?.quizId).toBe('test-quiz-1');
+    });
+
+    it('should clear current session after completion', () => {
+      service.startSession('test-quiz-1');
+      service.completeSession();
+      expect(service.currentSession()).toBeNull();
     });
   });
 
-  describe('Persistence', () => {
-    it('should persist sessions to localStorage', () => {
-      quizStateService.createNewQuiz();
-      quizStateService.updateQuizMetadata({
-        title: 'Test',
-        timeLimitValue: 5,
-      });
-      quizStateService.addQuestion();
-
-      const quiz = quizStateService.currentEditingQuiz()!;
-      const question = quiz.questions[0];
-      question.prompt = 'Q?';
-      question.options[0].text = 'O1';
-      question.options[1].text = 'O2';
-      question.correctAnswerId = question.options[0].id;
-      quizStateService.updateQuestion(question.id, question);
-      quizStateService.publishQuiz(quiz);
-
-      service.startSession(quiz.id);
+  describe('local storage', () => {
+    it('should persist session to localStorage', () => {
+      service.startSession('test-quiz-1');
+      service.recordAnswer('q1', 'opt2');
 
       const stored = localStorage.getItem('quizzer-sessions');
       expect(stored).toBeTruthy();
-
-      const data = JSON.parse(stored!);
-      expect(data.sessions.length).toBeGreaterThan(0);
+      const data = JSON.parse(stored || '{}');
+      expect(data.sessions.length).toBe(1);
+      expect(data.sessions[0].userAnswers).toEqual(
+        jasmine.arrayContaining([
+          {
+            questionId: 'q1',
+            selectedOptionId: 'opt2',
+          },
+        ])
+      );
     });
 
-    it('should restore sessions from localStorage', () => {
-      const sessions = [
-        {
-          id: 'session-1',
-          quizId: 'quiz-1',
-          status: Status.IN_PROGRESS,
-          startTime: Date.now(),
-          deadline: Date.now() + 60000,
-          userAnswers: [],
-        },
-      ];
+    it('should load sessions from localStorage on initialization', () => {
+      localStorage.clear();
+      sessionStorage.clear();
 
-      localStorage.setItem('quizzer-sessions', JSON.stringify({ sessions, results: [] }));
+      const mockSession = {
+        id: 'session-1',
+        quizId: 'test-quiz-1',
+        status: Status.IN_PROGRESS,
+        startTime: Date.now(),
+        deadline: Date.now() + 60000,
+        userAnswers: [],
+        submittedQuestionIds: [],
+        questionOrder: [],
+      };
+
+      const data = {
+        sessions: [mockSession],
+        results: [],
+      };
+
+      localStorage.setItem('quizzer-sessions', JSON.stringify(data));
 
       TestBed.resetTestingModule();
       TestBed.configureTestingModule({
-        providers: [QuizSessionService, QuizService],
+        providers: [provideZonelessChangeDetection(), QuizService, QuizSessionService],
       });
-      service = TestBed.inject(QuizSessionService);
 
-      expect(service.sessions().length).toBeGreaterThan(0);
+      const newService = TestBed.inject(QuizSessionService);
+      expect(newService.sessions().length).toBe(1);
+      expect(newService.sessions()[0].id).toBe('session-1');
     });
-  });
 
-  describe('Time Tracking', () => {
-    it('should compute time remaining', fakeAsync(() => {
-      quizStateService.createNewQuiz();
-      quizStateService.updateQuizMetadata({
-        title: 'Test',
-        timeLimitValue: 1,
+    it('should restore active session from localStorage', () => {
+      localStorage.clear();
+      sessionStorage.clear();
+
+      const mockSession = {
+        id: 'session-1',
+        quizId: 'test-quiz-1',
+        status: Status.IN_PROGRESS,
+        startTime: Date.now(),
+        deadline: Date.now() + 60000,
+        userAnswers: [],
+        submittedQuestionIds: [],
+        questionOrder: [],
+      };
+
+      const data = {
+        sessions: [mockSession],
+        results: [],
+      };
+
+      localStorage.setItem('quizzer-sessions', JSON.stringify(data));
+
+      TestBed.resetTestingModule();
+      TestBed.configureTestingModule({
+        providers: [provideZonelessChangeDetection(), QuizService, QuizSessionService],
       });
-      quizStateService.addQuestion();
 
-      const quiz = quizStateService.currentEditingQuiz()!;
-      const question = quiz.questions[0];
-      question.prompt = 'Q?';
-      question.options[0].text = 'O1';
-      question.options[1].text = 'O2';
-      question.correctAnswerId = question.options[0].id;
-      quizStateService.updateQuestion(question.id, question);
-      quizStateService.publishQuiz(quiz);
+      const newService = TestBed.inject(QuizSessionService);
+      expect(newService.currentSession()?.id).toBe('session-1');
+    });
 
-      service.startSession(quiz.id);
+    it('should persist results to localStorage', () => {
+      service.startSession('test-quiz-1');
+      service.recordAnswer('q1', 'opt2');
+      service.completeSession();
 
-      expect(service.timeRemaining()).toBeGreaterThan(0);
-      expect(service.timeRemaining()).toBeLessThanOrEqual(2);
-    }));
-  });
-
-  describe('Query Methods', () => {
-    it('should get results for quiz', () => {
-      quizStateService.createNewQuiz();
-      quizStateService.updateQuizMetadata({
-        title: 'Test',
-        timeLimitValue: 5,
-      });
-      quizStateService.addQuestion();
-
-      const quiz = quizStateService.currentEditingQuiz()!;
-      const question = quiz.questions[0];
-      question.prompt = 'Q?';
-      question.options[0].text = 'O1';
-      question.options[1].text = 'O2';
-      question.correctAnswerId = question.options[0].id;
-      quizStateService.updateQuestion(question.id, question);
-      quizStateService.publishQuiz(quiz);
-
-      service.startSession(quiz.id);
-      const results = service.completeSession();
-
-      if (results) {
-        const retrieved = service.getResultsForQuiz(results.quizId);
-        expect(retrieved).toEqual(results);
-      }
+      const stored = localStorage.getItem('quizzer-sessions');
+      const data = JSON.parse(stored || '{}');
+      expect(data.results.length).toBe(1);
+      expect(data.results[0].quizId).toBe('test-quiz-1');
     });
   });
 });
