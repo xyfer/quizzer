@@ -2,9 +2,6 @@
 
 A zoneless Angular quiz platform with signal-based state management and localStorage persistence.
 
-I didn't have too much experience with signals or using Angular without Zone.js prior to writing this
-(many years of RxJS and change detection) but I definitely learned a lot from this exercise.
-
 ## Architecture
 
 ```
